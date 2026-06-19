@@ -87,7 +87,7 @@ function _metInjectButton() {
     btn.textContent = 'Metronome';
     btn.title = 'Toggle metronome click';
     btn.onclick = _metToggle;
-    controls.insertBefore(btn, insertBefore);
+    if (insertBefore && insertBefore.parentNode === controls) controls.insertBefore(btn, insertBefore); else controls.appendChild(btn);
 
     const slider = document.createElement('input');
     slider.type = 'range';
@@ -96,13 +96,13 @@ function _metInjectButton() {
     slider.max = '100';
     slider.className = 'w-16 accent-amber-400 hidden';
     _metBindVolumeSlider(slider);
-    controls.insertBefore(slider, insertBefore);
+    if (insertBefore && insertBefore.parentNode === controls) controls.insertBefore(slider, insertBefore); else controls.appendChild(slider);
 
     const label = document.createElement('span');
     label.id = 'met-vol-label';
     label.className = 'text-xs text-gray-500 w-8 hidden';
     label.textContent = `${Math.round(_metSettings.volume * 100)}%`;
-    controls.insertBefore(label, insertBefore);
+    if (insertBefore && insertBefore.parentNode === controls) controls.insertBefore(label, insertBefore); else controls.appendChild(label);
 
     const flashLabel = document.createElement('label');
     flashLabel.id = 'met-flash-label';
@@ -113,7 +113,7 @@ function _metInjectButton() {
     flashCheck.className = 'accent-amber-400';
     flashLabel.appendChild(flashCheck);
     flashLabel.appendChild(document.createTextNode(' Flash'));
-    controls.insertBefore(flashLabel, insertBefore);
+    if (insertBefore && insertBefore.parentNode === controls) controls.insertBefore(flashLabel, insertBefore); else controls.appendChild(flashLabel);
     _metBindFlashCheck(flashCheck);
     _metSyncUi();
 }
