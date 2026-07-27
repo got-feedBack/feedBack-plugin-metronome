@@ -1,6 +1,9 @@
 // Metronome Overlay plugin
 // Adds audible click and visual flash on beats, synced to the song's tempo.
 
+(function () {
+    'use strict';
+
 let _metAudioCtx = null;
 const MET_SETTINGS_KEY = 'slopsmithMetronomeSettings';
 const DRAW_HOOK_RETRY_DELAY_MS = 1000;
@@ -297,3 +300,5 @@ window[TICK_INTERVAL_ID_KEY] = setInterval(function() {
 
 // Rebind existing controls immediately on script initialization/re-evaluation.
 _metInjectButton();
+
+})();
