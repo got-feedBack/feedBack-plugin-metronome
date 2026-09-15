@@ -1,6 +1,6 @@
 # Slopsmith Plugin: Metronome
 
-A plugin for [Slopsmith](https://github.com/got-feedback/feedback) that adds an audible metronome click and visual beat flash to the highway player, synced to the song's tempo.
+A plugin for [Slopsmith](https://github.com/got-feedback/feedBack) that adds an audible metronome click and visual beat flash to the highway player, synced to the song's tempo.
 
 ## Features
 
@@ -14,7 +14,7 @@ A plugin for [Slopsmith](https://github.com/got-feedback/feedback) that adds an 
 
 ```bash
 cd /path/to/slopsmith/plugins
-git clone https://github.com/got-feedback/feedback-plugin-metronome.git metronome
+git clone https://github.com/got-feedback/feedBack-plugin-metronome.git metronome
 docker compose restart
 ```
 
