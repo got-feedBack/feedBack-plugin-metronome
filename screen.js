@@ -8,31 +8,41 @@ const _metSettings = window[MET_SETTINGS_KEY] || (window[MET_SETTINGS_KEY] = {
     enabled: false,
     volume: 0.4,
     flashEnabled: true,
+    subdivision: 'none',
 });
+// Ensure fields added after initial release exist on saved state
+if (!_metSettings.subdivision) _metSettings.subdivision = 'none';
+
 const MET_STATE_KEY = 'slopsmithMetronomeState';
 const _metState = window[MET_STATE_KEY] || (window[MET_STATE_KEY] = {
     lastBeatIdx: -1,
     flashAlpha: 0,
+    lastSubdivInBeat: -1,
 });
+if (_metState.lastSubdivInBeat === undefined) _metState.lastSubdivInBeat = -1;
+
 let _metNextDrawHookRetryAtMs = 0;
 
-function _metClick(high) {
+// type: 'high' = downbeat, 'mid' = regular beat, 'low' = subdivision
+function _metClick(type) {
     if (!_metAudioCtx) _metAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (_metSettings.volume <= 0) return;
     const osc = _metAudioCtx.createOscillator();
     const gain = _metAudioCtx.createGain();
     osc.connect(gain);
     gain.connect(_metAudioCtx.destination);
-    osc.frequency.value = high ? 1500 : 1000;
+    const freq = type === 'high' ? 1500 : type === 'mid' ? 1000 : 660;
+    const vol = (type === 'low' ? 0.4 : 1.0) * _metSettings.volume;
+    osc.frequency.value = freq;
     osc.type = 'sine';
-    gain.gain.setValueAtTime(_metSettings.volume, _metAudioCtx.currentTime);
+    gain.gain.setValueAtTime(vol, _metAudioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, _metAudioCtx.currentTime + 0.06);
     osc.start(_metAudioCtx.currentTime);
     osc.stop(_metAudioCtx.currentTime + 0.06);
 }
 
-function _metFlash(isMeasure) {
-    if (_metSettings.flashEnabled) _metState.flashAlpha = isMeasure ? 0.35 : 0.15;
+function _metFlash(alpha) {
+    if (_metSettings.flashEnabled) _metState.flashAlpha = alpha;
 }
 
 function _metBindVolumeSlider(slider) {
@@ -63,6 +73,18 @@ function _metBindFlashCheck(flashCheck) {
     flashCheck.addEventListener('change', flashCheck._metFlashListener);
 }
 
+function _metBindSubdivSelect(sel) {
+    if (sel._metSubdivListener) {
+        sel.removeEventListener('change', sel._metSubdivListener);
+    }
+    sel.value = _metSettings.subdivision;
+    sel._metSubdivListener = function() {
+        _metSettings.subdivision = this.value;
+        _metState.lastSubdivInBeat = -1;
+    };
+    sel.addEventListener('change', sel._metSubdivListener);
+}
+
 // Inject toggle button into player controls
 function _metInjectButton() {
     const controls = document.getElementById('player-controls');
@@ -71,9 +93,11 @@ function _metInjectButton() {
     if (existingBtn) {
         const existingSlider = document.getElementById('met-volume');
         const existingFlashCheck = document.getElementById('met-flash-check');
+        const existingSubdivSel = document.getElementById('met-subdiv');
         existingBtn.onclick = _metToggle;
         if (existingSlider) _metBindVolumeSlider(existingSlider);
         if (existingFlashCheck) _metBindFlashCheck(existingFlashCheck);
+        if (existingSubdivSel) _metBindSubdivSelect(existingSubdivSel);
         _metSyncUi();
         return;
     }
@@ -115,6 +139,20 @@ function _metInjectButton() {
     flashLabel.appendChild(document.createTextNode(' Flash'));
     if (insertBefore && insertBefore.parentNode === controls) controls.insertBefore(flashLabel, insertBefore); else controls.appendChild(flashLabel);
     _metBindFlashCheck(flashCheck);
+
+    const subdivSel = document.createElement('select');
+    subdivSel.id = 'met-subdiv';
+    subdivSel.className = 'bg-dark-600 text-xs text-gray-400 rounded px-1 py-0.5 border border-dark-500 hidden';
+    subdivSel.title = 'Subdivision clicks';
+    [['none', 'Beats only'], ['eighth', '8th notes'], ['triplet', 'Triplets']].forEach(([val, text]) => {
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = text;
+        subdivSel.appendChild(opt);
+    });
+    controls.insertBefore(subdivSel, insertBefore);
+    _metBindSubdivSelect(subdivSel);
+
     _metSyncUi();
 }
 
@@ -124,6 +162,7 @@ function _metSyncUi() {
     const slider = document.getElementById('met-volume');
     const label = document.getElementById('met-vol-label');
     const flashLabel = document.getElementById('met-flash-label');
+    const subdivSel = document.getElementById('met-subdiv');
     if (btn) {
         btn.className = enabled
             ? 'px-3 py-1.5 bg-amber-900/50 rounded-lg text-xs text-amber-300 transition'
@@ -133,12 +172,14 @@ function _metSyncUi() {
     if (slider) slider.classList.toggle('hidden', !enabled);
     if (label) label.classList.toggle('hidden', !enabled);
     if (flashLabel) flashLabel.classList.toggle('hidden', !enabled);
+    if (subdivSel) subdivSel.classList.toggle('hidden', !enabled);
 }
 
 function _metToggle() {
     _metSettings.enabled = !_metSettings.enabled;
     _metSyncUi();
     _metState.lastBeatIdx = -1;
+    _metState.lastSubdivInBeat = -1;
 }
 
 function _metSetVolume(v) {
@@ -208,24 +249,55 @@ function _metTick() {
         else hi = mid;
     }
     const idx = lo - 1;
-    if (idx < 0 || idx === _metState.lastBeatIdx) {
-        // Fade out flash
+
+    // Reset subdivision state when we enter a new beat interval
+    if (idx !== _metState.lastBeatIdx) {
+        _metState.lastSubdivInBeat = -1;
+    }
+
+    if (idx < 0) {
         _metState.flashAlpha *= 0.85;
         return;
     }
 
-    // Only trigger if we're close to the beat (within 50ms) to avoid catching up on seeks
-    const beatTime = beats[idx].time;
-    if (Math.abs(t - beatTime) > 0.05) {
+    // Trigger full beat click on new beat
+    if (idx !== _metState.lastBeatIdx) {
         _metState.lastBeatIdx = idx;
-        _metState.flashAlpha *= 0.85;
-        return;
+        const beatTime = beats[idx].time;
+        if (Math.abs(t - beatTime) <= 0.05) {
+            const isMeasure = beats[idx].measure >= 0;
+            _metClick(isMeasure ? 'high' : 'mid');
+            _metFlash(isMeasure ? 0.35 : 0.15);
+        }
     }
 
-    _metState.lastBeatIdx = idx;
-    const isMeasure = beats[idx].measure >= 0;
-    _metClick(isMeasure);
-    _metFlash(isMeasure);
+    // Check subdivisions within the current beat interval.
+    // Subdivision times are interpolated between this beat and the next, so
+    // they naturally follow any playback-speed change applied by the host.
+    const subdivMode = _metSettings.subdivision || 'none';
+    if (subdivMode !== 'none' && idx + 1 < beats.length) {
+        const beatStart = beats[idx].time;
+        const dt = beats[idx + 1].time - beatStart;
+        const subdivTimes = subdivMode === 'eighth'
+            ? [beatStart + dt * 0.5]
+            : [beatStart + dt / 3, beatStart + dt * 2 / 3];
+
+        for (let s = 0; s < subdivTimes.length; s++) {
+            if (s <= _metState.lastSubdivInBeat) continue;
+            if (t < subdivTimes[s]) break;  // ordered ascending; nothing further is due yet
+            _metState.lastSubdivInBeat = s;
+            if (Math.abs(t - subdivTimes[s]) <= 0.05) {
+                _metClick('low');
+                // Dim flash for subdivision — only raise alpha, never lower a beat flash in progress
+                if (_metSettings.flashEnabled && _metState.flashAlpha < 0.07) {
+                    _metState.flashAlpha = 0.07;
+                }
+            }
+        }
+    }
+
+    // Fade flash every tick (draw hook also fades per frame)
+    _metState.flashAlpha *= 0.85;
 }
 
 // Node-only export hook for tests; browsers fall through to the polling
@@ -285,6 +357,7 @@ window[TICK_INTERVAL_ID_KEY] = setInterval(function() {
 
     const wrappedPlaySong = async function(filename, arrangement) {
         _metState.lastBeatIdx = -1;
+        _metState.lastSubdivInBeat = -1;
         await playSongBaseFn(filename, arrangement);
         _metInjectButton();
     };
