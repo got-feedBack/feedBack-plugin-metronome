@@ -8,6 +8,7 @@ A plugin for [Slopsmith](https://github.com/got-feedback/feedback) that adds an 
 - **Visual flash** — subtle amber glow on the highway canvas on each beat (brighter on downbeats)
 - **Tempo-synced** — follows the song's actual beat map, including tempo changes
 - **Toggle button** — click "Metronome" in the player controls to enable/disable
+- **Volume and flash controls**: while the metronome is on, a volume slider and a **Flash** checkbox appear next to the button
 - **Zero setup** — no configuration needed, works with any song
 
 ## Installation
@@ -18,7 +19,14 @@ git clone https://github.com/got-feedback/feedback-plugin-metronome.git metronom
 docker compose restart
 ```
 
-A "Metronome" button will appear in the player controls bar when you play a song.
+Metronome is also bundled with the feedBack Desktop app.
+
+## Usage
+
+1. Play a song.
+2. Click **Metronome**. In the v3 UI it sits in the **Plugin controls** popover on the player rail.
+3. Set the click volume with the slider, or untick **Flash** to turn off the visual beat flash.
+4. Click **Metronome ✓** again to turn it off.
 
 ## How It Works
 

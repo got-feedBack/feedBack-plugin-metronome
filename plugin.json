@@ -5,6 +5,6 @@
   "private": false,
   "script": "screen.js",
   "category": "practice",
-  "description": "Built-in metronome and count-in.",
+  "description": "Audible click and beat flash synced to the song's tempo.",
   "icon": "assets/thumb.svg"
 }
